@@ -75,9 +75,9 @@ export default function App() {
       } else {
         const initialData = {
           expenses: [
-            { id: 1, name: 'WiFi', amount: 280000, paidAmount: 0 },
-            { id: 2, name: 'Listrik', amount: 200000, paidAmount: 100000 },
-            { id: 3, name: 'Air', amount: 140000, paidAmount: 0 },
+            { id: 1, name: 'WiFi', amount: 280000, paidAmount: 0, hasInstallment: false },
+            { id: 2, name: 'Listrik', amount: 200000, paidAmount: 100000, hasInstallment: true },
+            { id: 3, name: 'Air', amount: 140000, paidAmount: 0, hasInstallment: false },
           ],
           residents: Array.from({ length: 7 }, (_, i) => ({ 
             id: i + 1, 
@@ -142,7 +142,7 @@ export default function App() {
   const handleAddExpense = () => {
     if (!isAdmin) return;
     const newId = data.expenses.length > 0 ? Math.max(...data.expenses.map(e => e.id)) + 1 : 1;
-    updateData({ ...data, expenses: [...data.expenses, { id: newId, name: '', amount: 0, paidAmount: 0 }] });
+    updateData({ ...data, expenses: [...data.expenses, { id: newId, name: '', amount: 0, paidAmount: 0, hasInstallment: false }] });
   };
 
   const handleRemoveExpense = (id) => {
@@ -156,6 +156,9 @@ export default function App() {
       ...data,
       expenses: data.expenses.map(e => {
         if (e.id === id) {
+          if (field === 'hasInstallment') {
+            return { ...e, hasInstallment: value, paidAmount: value ? e.paidAmount : 0 };
+          }
           let finalValue = value;
           if (field === 'amount' || field === 'paidAmount') {
             finalValue = parseInt(value) || 0;
@@ -227,7 +230,7 @@ export default function App() {
     const newData = {
       ...data,
       // Mengosongkan cicilan/status agar siap dipakai bulan depan
-      expenses: data.expenses.map(e => ({ ...e, paidAmount: 0 })),
+      expenses: data.expenses.map(e => ({ ...e, paidAmount: 0, hasInstallment: false })),
       residents: data.residents.map(r => ({ ...r, hasPaid: false })),
       history: [...(data.history || []), historyRecord]
     };
@@ -419,29 +422,63 @@ export default function App() {
               </div>
 
               <div className="space-y-4">
-                {data.expenses.map((expense) => (
-                  <div key={expense.id} className="p-4 border border-slate-200 rounded-xl bg-slate-50 relative group transition-all">
-                    {isAdmin && (
-                      <button onClick={() => handleRemoveExpense(expense.id)} className="absolute -top-3 -right-3 bg-red-100 text-red-500 p-1.5 rounded-full hover:bg-red-500 hover:text-white transition shadow-sm opacity-0 group-hover:opacity-100 focus:opacity-100">
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    )}
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                      <div>
-                        <label className="block text-xs font-medium text-slate-500 mb-1">Nama Biaya</label>
-                        <input type="text" value={expense.name} onChange={(e) => handleUpdateExpense(expense.id, 'name', e.target.value)} disabled={!isAdmin} placeholder="Misal: Air / Gas" className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition text-sm disabled:bg-slate-100 disabled:text-slate-600 disabled:border-transparent"/>
+                {data.expenses.map((expense) => {
+                  const isInstallmentActive = expense.hasInstallment ?? (expense.paidAmount > 0);
+                  
+                  return (
+                    <div key={expense.id} className="p-4 border border-slate-200 rounded-xl bg-slate-50 relative group transition-all">
+                      {isAdmin && (
+                        <button onClick={() => handleRemoveExpense(expense.id)} className="absolute -top-3 -right-3 bg-red-100 text-red-500 p-1.5 rounded-full hover:bg-red-500 hover:text-white transition shadow-sm opacity-0 group-hover:opacity-100 focus:opacity-100">
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
+                      
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs font-medium text-slate-500 mb-1">Nama Biaya</label>
+                          <input type="text" value={expense.name} onChange={(e) => handleUpdateExpense(expense.id, 'name', e.target.value)} disabled={!isAdmin} placeholder="Misal: Air / Gas" className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition text-sm disabled:bg-slate-100 disabled:text-slate-600 disabled:border-transparent"/>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-slate-500 mb-1">Total Tagihan (Rp)</label>
+                          <input type="number" value={expense.amount === 0 ? '' : expense.amount} onChange={(e) => handleUpdateExpense(expense.id, 'amount', e.target.value)} disabled={!isAdmin} placeholder="0" className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition text-sm disabled:bg-slate-100 disabled:text-slate-600 disabled:border-transparent"/>
+                        </div>
                       </div>
-                      <div>
-                        <label className="block text-xs font-medium text-slate-500 mb-1">Total Tagihan (Rp)</label>
-                        <input type="number" value={expense.amount === 0 ? '' : expense.amount} onChange={(e) => handleUpdateExpense(expense.id, 'amount', e.target.value)} disabled={!isAdmin} placeholder="0" className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition text-sm disabled:bg-slate-100 disabled:text-slate-600 disabled:border-transparent"/>
-                      </div>
-                      <div>
-                        <label className="block text-xs font-medium text-slate-500 mb-1">Sudah Dicicil (Rp)</label>
-                        <input type="number" value={expense.paidAmount === 0 ? '' : expense.paidAmount} onChange={(e) => handleUpdateExpense(expense.id, 'paidAmount', e.target.value)} disabled={!isAdmin} placeholder="0" className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition text-sm disabled:bg-slate-100 disabled:text-slate-600 disabled:border-transparent"/>
-                      </div>
+
+                      {/* Admin Toggle & Input Cicilan */}
+                      {isAdmin && (
+                        <div className="mt-4 pt-3 border-t border-slate-200/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                          <label className="flex items-center gap-3 cursor-pointer">
+                            <button
+                              type="button"
+                              onClick={() => handleUpdateExpense(expense.id, 'hasInstallment', !isInstallmentActive)}
+                              className={`w-11 h-6 rounded-full relative transition-colors duration-300 ${isInstallmentActive ? 'bg-blue-500' : 'bg-slate-300'}`}
+                            >
+                              <span className={`absolute top-1 left-1 bg-white w-4 h-4 rounded-full transition-transform duration-300 shadow-sm ${isInstallmentActive ? 'translate-x-5' : 'translate-x-0'}`} />
+                            </button>
+                            <span className="text-sm font-medium text-slate-600 select-none">Sudah dicicil / ada uang masuk?</span>
+                          </label>
+                          
+                          {isInstallmentActive && (
+                            <div className="w-full sm:w-1/3 animate-in fade-in slide-in-from-top-2">
+                              <div className="relative">
+                                <span className="absolute left-3 top-2 text-slate-400 text-sm font-medium">Rp</span>
+                                <input type="number" value={expense.paidAmount === 0 ? '' : expense.paidAmount} onChange={(e) => handleUpdateExpense(expense.id, 'paidAmount', e.target.value)} placeholder="0" className="w-full pl-9 p-2 border border-blue-200 bg-blue-50 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition text-sm font-medium text-blue-900 placeholder:text-blue-300"/>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* View Mode (Non-Admin) untuk Cicilan */}
+                      {!isAdmin && isInstallmentActive && (
+                        <div className="mt-3 p-3 bg-blue-50 border border-blue-100 rounded-lg flex justify-between items-center">
+                          <span className="text-xs font-medium text-blue-700">Sudah Dicicil / Dibayar Sebagian:</span>
+                          <span className="text-sm font-bold text-blue-800">{formatRupiah(expense.paidAmount)}</span>
+                        </div>
+                      )}
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
 
