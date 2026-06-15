@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Plus, Trash2, Users, Wallet, Receipt, Info, CheckCircle2, Circle, ShieldCheck, RefreshCw, Loader2, History, Calendar, Lock } from 'lucide-react';
+import { Plus, Trash2, Users, Wallet, Receipt, Info, CheckCircle2, Circle, ShieldCheck, RefreshCw, Loader2, History, Calendar, Lock, MessageCircle, Phone, X, Eye } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, doc, setDoc, onSnapshot } from 'firebase/firestore';
@@ -7,12 +7,12 @@ import { getFirestore, doc, setDoc, onSnapshot } from 'firebase/firestore';
 // --- FIREBASE INITIALIZATION ---
 // PENTING: Ganti object di bawah ini dengan config Firebase milikmu!
 const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
-  apiKey: "AIzaSyD-LvUWxP1TMMOmIcNqRP01ibsNDRvWqv8",
-  authDomain: "kas-kontrakan.firebaseapp.com",
-  projectId: "kas-kontrakan",
-  storageBucket: "kas-kontrakan.firebasestorage.app",
-  messagingSenderId: "658531597863",
-  appId: "1:658531597863:web:29279447fd5f526bd4d802"
+  apiKey: "KODE_DARI_FIREBASE_KAMU",
+  authDomain: "kas-kontrakan-kamu.firebaseapp.com",
+  projectId: "kas-kontrakan-kamu",
+  storageBucket: "kas-kontrakan-kamu.appspot.com",
+  messagingSenderId: "123456789",
+  appId: "1:123456789:web:abcdefg"
 };
 
 const app = initializeApp(firebaseConfig);
@@ -24,26 +24,25 @@ export default function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   
-  // --- STATE UNTUK ADMIN ---
   const [isAdmin, setIsAdmin] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [pinInput, setPinInput] = useState('');
   const [loginError, setLoginError] = useState('');
-  const ADMIN_PIN = '123456'; // Ganti dengan PIN rahasia kamu
+  const ADMIN_PIN = '123456';
   
-  // --- STATE UNTUK MODAL NOTIFIKASI & TUTUP BULAN ---
   const [alertMsg, setAlertMsg] = useState({ show: false, title: '', message: '', type: 'info' });
   const [showFinishModal, setShowFinishModal] = useState(false);
   const [monthNameInput, setMonthNameInput] = useState('');
+  
+  // State untuk menampilkan detail history
+  const [selectedHistory, setSelectedHistory] = useState(null);
 
-  // Data Structure
   const [data, setData] = useState({
     expenses: [],
     residents: [],
     history: []
   });
 
-  // --- AUTHENTICATION & DATA FETCHING ---
   useEffect(() => {
     const initAuth = async () => {
       try {
@@ -81,7 +80,8 @@ export default function App() {
           ],
           residents: Array.from({ length: 7 }, (_, i) => ({ 
             id: i + 1, 
-            name: `Penghuni ${i + 1}`, 
+            name: `Penghuni ${i + 1}`,
+            phone: '', 
             hasPaid: false 
           })),
           history: []
@@ -98,7 +98,6 @@ export default function App() {
     return () => unsubscribe();
   }, [user]);
 
-  // --- DATA MUTATIONS (SYNC TO FIRESTORE) ---
   const updateData = async (newData) => {
     setData(newData);
     if (!user) return;
@@ -111,7 +110,6 @@ export default function App() {
     }
   };
 
-  // --- CALCULATIONS ---
   const calc = useMemo(() => {
     const expenses = data.expenses || [];
     const residents = data.residents || [];
@@ -138,7 +136,7 @@ export default function App() {
     };
   }, [data]);
 
-  // Handlers Expense & Residents
+  // --- HANDLERS TAMBAH & HAPUS ---
   const handleAddExpense = () => {
     if (!isAdmin) return;
     const newId = data.expenses.length > 0 ? Math.max(...data.expenses.map(e => e.id)) + 1 : 1;
@@ -174,7 +172,7 @@ export default function App() {
   const handleAddResident = () => {
     if (!isAdmin) return;
     const newId = data.residents.length > 0 ? Math.max(...data.residents.map(r => r.id)) + 1 : 1;
-    updateData({ ...data, residents: [...data.residents, { id: newId, name: `Penghuni ${newId}`, hasPaid: false }] });
+    updateData({ ...data, residents: [...data.residents, { id: newId, name: `Penghuni ${newId}`, phone: '', hasPaid: false }] });
   };
 
   const handleRemoveResident = (id) => {
@@ -187,27 +185,49 @@ export default function App() {
     updateData({ ...data, residents: data.residents.map(r => r.id === id ? { ...r, name: newName } : r) });
   };
 
+  const handleUpdateResidentPhone = (id, newPhone) => {
+    if (!isAdmin) return;
+    updateData({ ...data, residents: data.residents.map(r => r.id === id ? { ...r, phone: newPhone } : r) });
+  };
+
   const handleTogglePaid = (id) => {
     if (!isAdmin) return;
     updateData({ ...data, residents: data.residents.map(r => r.id === id ? { ...r, hasPaid: !r.hasPaid } : r) });
   };
 
+  // --- FITUR RESTORE DATA (TOMBOL DARURAT) ---
+  const handleRestoreDefault = () => {
+    if (!isAdmin) return;
+    if (!window.confirm("Pulihkan otomatis data biaya (WiFi, Listrik, Air) dan 7 slot penghuni? Data saat ini akan ditimpa.")) return;
+    
+    const restoredData = {
+      ...data,
+      expenses: [
+        { id: 1, name: 'WiFi', amount: 280000, paidAmount: 0, hasInstallment: false },
+        { id: 2, name: 'Listrik', amount: 200000, paidAmount: 0, hasInstallment: false },
+        { id: 3, name: 'Air', amount: 140000, paidAmount: 0, hasInstallment: false },
+      ],
+      residents: Array.from({ length: 7 }, (_, i) => ({ 
+        id: i + 1, 
+        name: `Penghuni ${i + 1}`,
+        phone: '', 
+        hasPaid: false 
+      }))
+    };
+    updateData(restoredData);
+  };
+
+  // --- SELESAI BULAN INI & HISTORY ---
   const handleFinishMonthClick = () => {
     if (!isAdmin) return;
-
-    // Cek apakah semua penghuni sudah bayar
     const allPaid = data.residents.length > 0 && data.residents.every(r => r.hasPaid);
     if (!allPaid) {
       setAlertMsg({
-        show: true,
-        title: '⚠️ Belum Lunas Semua!',
-        message: 'Masih ada penghuni yang belum membayar. Silakan selesaikan dan centang semua status pembayaran terlebih dahulu.',
-        type: 'error'
+        show: true, title: '⚠️ Belum Lunas Semua!',
+        message: 'Masih ada penghuni yang belum membayar. Silakan selesaikan dan centang semua status pembayaran terlebih dahulu.', type: 'error'
       });
       return;
     }
-
-    // Set default nama bulan (misal: Tagihan Mei 2026)
     const currentMonth = new Date().toLocaleString('id-ID', { month: 'long', year: 'numeric' });
     setMonthNameInput(`Tagihan ${currentMonth}`);
     setShowFinishModal(true);
@@ -216,6 +236,7 @@ export default function App() {
   const confirmFinishMonth = async () => {
     if (!monthNameInput.trim()) return;
 
+    // Menyimpan rekam jejak lengkap saat di-finish
     const historyRecord = {
       id: Date.now(),
       monthName: monthNameInput,
@@ -224,12 +245,14 @@ export default function App() {
       terkumpul: calc.totalCollected,
       lunas: data.residents.filter(r => r.hasPaid).length,
       totalPenghuni: data.residents.length,
-      dateSaved: new Date().toISOString()
+      dateSaved: new Date().toISOString(),
+      // Merekam data tagihan dan penghuni saat ini
+      expensesSnapshot: data.expenses,
+      residentsSnapshot: data.residents
     };
 
     const newData = {
       ...data,
-      // Mengosongkan cicilan/status agar siap dipakai bulan depan
       expenses: data.expenses.map(e => ({ ...e, paidAmount: 0, hasInstallment: false })),
       residents: data.residents.map(r => ({ ...r, hasPaid: false })),
       history: [...(data.history || []), historyRecord]
@@ -239,45 +262,42 @@ export default function App() {
     setShowFinishModal(false);
     
     setAlertMsg({
-      show: true,
-      title: '✅ BERHASIL!',
-      message: 'Buku bulan ini telah ditutup. Data tersimpan di Riwayat dan tagihan kembali disiapkan untuk bulan depan.',
-      type: 'success'
+      show: true, title: '✅ BERHASIL!',
+      message: 'Buku bulan ini telah ditutup. Data tersimpan di Riwayat dan tagihan kembali disiapkan untuk bulan depan.', type: 'success'
     });
   };
 
-  const handleDeleteHistory = (historyId) => {
+  const handleDeleteHistory = (e, historyId) => {
+    e.stopPropagation(); // Mencegah klik menyebar ke buka modal
     if (!isAdmin) return;
     if (window.confirm("Yakin ingin menghapus riwayat ini?")) {
-      updateData({
-        ...data,
-        history: (data.history || []).filter(h => h.id !== historyId)
-      });
+      updateData({ ...data, history: (data.history || []).filter(h => h.id !== historyId) });
     }
   };
 
-  // --- UTILS ---
   const formatRupiah = (number) => {
-    return new Intl.NumberFormat('id-ID', {
-      style: 'currency', currency: 'IDR', minimumFractionDigits: 0,
-    }).format(number);
+    return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(number);
   };
 
-  // --- LOGIN ADMIN HANDLERS ---
   const handleAdminLogin = (e) => {
     e.preventDefault();
     if (pinInput === ADMIN_PIN) {
-      setIsAdmin(true);
-      setShowLoginModal(false);
-      setPinInput('');
-      setLoginError('');
+      setIsAdmin(true); setShowLoginModal(false); setPinInput(''); setLoginError('');
     } else {
       setLoginError('PIN Admin salah!');
     }
   };
 
-  const handleAdminLogout = () => {
-    setIsAdmin(false);
+  const handleAdminLogout = () => { setIsAdmin(false); };
+
+  const getWhatsAppLink = (resident) => {
+    let phone = resident.phone || '';
+    phone = phone.replace(/\D/g, ''); 
+    if (phone.startsWith('0')) phone = '62' + phone.substring(1);
+    
+    const currentMonth = new Date().toLocaleString('id-ID', { month: 'long', year: 'numeric' });
+    const message = `Halo *${resident.name}*! 🙏\n\nSekadar mengingatkan otomatis dari kas, iuran kontrakan untuk *${currentMonth}* sebesar *${formatRupiah(calc.roundedCurrent)}* terpantau belum lunas.\n\nBoleh minta tolong untuk segera diselesaikan yaa. Terima kasih kerjasamanya! 💸😊`;
+    return `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
   };
 
   if (loading) {
@@ -303,30 +323,18 @@ export default function App() {
             <p className="text-sm text-slate-500 text-center mb-6">Masukkan PIN untuk mengedit tagihan</p>
             
             <form onSubmit={handleAdminLogin}>
-              <input
-                type="password"
-                value={pinInput}
-                onChange={(e) => { setPinInput(e.target.value); setLoginError(''); }}
-                placeholder="Masukkan PIN"
-                className="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-center tracking-[0.5em] mb-2"
-                autoFocus
-              />
+              <input type="password" value={pinInput} onChange={(e) => { setPinInput(e.target.value); setLoginError(''); }} placeholder="Masukkan PIN" className="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-center tracking-[0.5em] mb-2" autoFocus />
               {loginError && <p className="text-red-500 text-sm text-center font-medium mb-2">{loginError}</p>}
-              
               <div className="flex gap-2 mt-4">
-                <button type="button" onClick={() => {setShowLoginModal(false); setLoginError(''); setPinInput('');}} className="w-full py-2.5 rounded-xl font-semibold bg-slate-100 text-slate-600 hover:bg-slate-200 transition">
-                  Batal
-                </button>
-                <button type="submit" className="w-full py-2.5 rounded-xl font-semibold bg-blue-600 text-white hover:bg-blue-700 transition shadow-md">
-                  Masuk
-                </button>
+                <button type="button" onClick={() => {setShowLoginModal(false); setLoginError(''); setPinInput('');}} className="w-full py-2.5 rounded-xl font-semibold bg-slate-100 text-slate-600 hover:bg-slate-200 transition">Batal</button>
+                <button type="submit" className="w-full py-2.5 rounded-xl font-semibold bg-blue-600 text-white hover:bg-blue-700 transition shadow-md">Masuk</button>
               </div>
             </form>
           </div>
         </div>
       )}
 
-      {/* MODAL ALERT (WARNING / SUCCESS) */}
+      {/* MODAL ALERT */}
       {alertMsg.show && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl animate-in fade-in zoom-in-95 duration-200">
@@ -335,9 +343,7 @@ export default function App() {
             </div>
             <h3 className="text-xl font-bold text-center mb-2">{alertMsg.title}</h3>
             <p className="text-sm text-slate-600 text-center mb-6">{alertMsg.message}</p>
-            <button onClick={() => setAlertMsg({ ...alertMsg, show: false })} className="w-full py-2.5 rounded-xl font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200 transition">
-              Mengerti
-            </button>
+            <button onClick={() => setAlertMsg({ ...alertMsg, show: false })} className="w-full py-2.5 rounded-xl font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200 transition">Mengerti</button>
           </div>
         </div>
       )}
@@ -352,22 +358,74 @@ export default function App() {
             <h3 className="text-xl font-bold text-center mb-1">Tutup Buku Bulan Ini</h3>
             <p className="text-sm text-slate-500 text-center mb-4">Beri nama untuk arsip tagihan ini.</p>
             
-            <input
-              type="text"
-              value={monthNameInput}
-              onChange={(e) => setMonthNameInput(e.target.value)}
-              placeholder="Contoh: Tagihan Mei 2026"
-              className="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none mb-6 text-center font-medium"
-              autoFocus
-            />
-            
+            <input type="text" value={monthNameInput} onChange={(e) => setMonthNameInput(e.target.value)} placeholder="Contoh: Tagihan Mei 2026" className="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none mb-6 text-center font-medium" autoFocus />
             <div className="flex gap-2">
-              <button onClick={() => setShowFinishModal(false)} className="w-full py-2.5 rounded-xl font-semibold bg-slate-100 text-slate-600 hover:bg-slate-200 transition">
-                Batal
-              </button>
+              <button onClick={() => setShowFinishModal(false)} className="w-full py-2.5 rounded-xl font-semibold bg-slate-100 text-slate-600 hover:bg-slate-200 transition">Batal</button>
               <button onClick={confirmFinishMonth} className="w-full py-2.5 rounded-xl font-semibold bg-emerald-500 text-white hover:bg-emerald-600 transition shadow-md flex items-center justify-center gap-2">
                 <CheckCircle2 className="w-4 h-4" /> Simpan
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DETAIL RIWAYAT (BARU) */}
+      {selectedHistory && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl animate-in fade-in zoom-in-95 duration-200 overflow-hidden max-h-[90vh] flex flex-col">
+            <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+              <div className="flex items-center gap-3">
+                <div className="bg-blue-100 p-2 rounded-lg text-blue-600"><History className="w-5 h-5" /></div>
+                <div>
+                  <h3 className="text-lg font-bold text-slate-800">{selectedHistory.monthName}</h3>
+                  <p className="text-xs text-slate-500">Iuran: {formatRupiah(selectedHistory.iuranPerOrang)}/org</p>
+                </div>
+              </div>
+              <button onClick={() => setSelectedHistory(null)} className="text-slate-400 hover:bg-slate-200 p-2 rounded-lg transition-colors"><X className="w-5 h-5" /></button>
+            </div>
+            
+            <div className="p-6 overflow-y-auto space-y-6">
+              {/* Snapshot Rincian Biaya */}
+              <div>
+                <h4 className="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2"><Receipt className="w-4 h-4 text-blue-500" /> Rincian Biaya Saat Itu</h4>
+                <div className="space-y-2">
+                  {selectedHistory.expensesSnapshot ? selectedHistory.expensesSnapshot.map(exp => (
+                    <div key={exp.id} className="flex justify-between items-center text-sm p-3 bg-slate-50 rounded-xl border border-slate-100">
+                      <div>
+                        <div className="font-medium text-slate-700">{exp.name}</div>
+                        {exp.paidAmount > 0 && <div className="text-[10px] text-blue-500 mt-0.5">Diskon/Cicilan: {formatRupiah(exp.paidAmount)}</div>}
+                      </div>
+                      <span className="font-bold text-slate-800">{formatRupiah(exp.amount - (exp.paidAmount || 0))}</span>
+                    </div>
+                  )) : (
+                    <div className="text-xs text-slate-400 italic p-4 text-center bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                      Rincian tagihan tidak tersedia di arsip versi lama.
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Snapshot Status Penghuni */}
+              <div>
+                <h4 className="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2"><Users className="w-4 h-4 text-indigo-500" /> Daftar Pembayar Lunas</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {selectedHistory.residentsSnapshot ? selectedHistory.residentsSnapshot.map(res => (
+                    <div key={res.id} className="flex items-center gap-2 text-sm p-2.5 bg-emerald-50 rounded-lg border border-emerald-100">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                      <span className="text-emerald-800 font-medium">{res.name}</span>
+                    </div>
+                  )) : (
+                    <div className="text-xs text-slate-400 italic p-4 text-center bg-slate-50 rounded-xl border border-dashed border-slate-200 col-span-full">
+                      Daftar orang tidak tersedia di arsip versi lama.
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+            
+            <div className="p-5 border-t border-slate-100 bg-emerald-500 flex justify-between items-center text-white">
+               <span className="text-sm font-medium opacity-90">Total Kas Terkumpul</span>
+               <span className="text-xl font-bold">{formatRupiah(selectedHistory.terkumpul)}</span>
             </div>
           </div>
         </div>
@@ -382,29 +440,21 @@ export default function App() {
             <div>
               <h1 className="text-2xl font-bold mb-1">Manajemen Kas Kontrakan</h1>
               <p className="text-blue-100 text-sm flex items-center gap-2">
-                {isAdmin ? (
-                  <><ShieldCheck className="w-4 h-4 text-amber-300" /> Mode Admin Aktif</>
-                ) : (
-                  <><Users className="w-4 h-4 text-emerald-300" /> Mode Penghuni (Hanya Lihat)</>
-                )}
+                {isAdmin ? ( <><ShieldCheck className="w-4 h-4 text-amber-300" /> Mode Admin Aktif</> ) : ( <><Users className="w-4 h-4 text-emerald-300" /> Mode Penghuni (Hanya Lihat)</> )}
               </p>
             </div>
           </div>
           
           {isAdmin ? (
-            <button onClick={handleAdminLogout} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all bg-amber-500 text-amber-950 hover:bg-amber-400 shadow-md">
-              Keluar Mode Admin
-            </button>
+            <button onClick={handleAdminLogout} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all bg-amber-500 text-amber-950 hover:bg-amber-400 shadow-md">Keluar Mode Admin</button>
           ) : (
-            <button onClick={() => setShowLoginModal(true)} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all bg-white/20 text-white hover:bg-white/30 backdrop-blur-sm border border-white/20">
-              <Lock className="w-4 h-4" /> Masuk Admin
-            </button>
+            <button onClick={() => setShowLoginModal(true)} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all bg-white/20 text-white hover:bg-white/30 backdrop-blur-sm border border-white/20"><Lock className="w-4 h-4" /> Masuk Admin</button>
           )}
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           
-          {/* Main Content (Kiri & Tengah) */}
+          {/* Main Content */}
           <div className="lg:col-span-2 space-y-6">
             
             {/* Rincian Biaya */}
@@ -415,23 +465,23 @@ export default function App() {
                   <h2 className="text-lg font-semibold">Rincian Tagihan Bulan Ini</h2>
                 </div>
                 {isAdmin && (
-                  <button onClick={handleAddExpense} className="flex items-center gap-1 text-sm bg-blue-50 text-blue-600 px-3 py-1.5 rounded-lg hover:bg-blue-100 transition font-medium">
-                    <Plus className="w-4 h-4" /> Tambah Biaya
-                  </button>
+                  <button onClick={handleAddExpense} className="flex items-center gap-1 text-sm bg-blue-50 text-blue-600 px-3 py-1.5 rounded-lg hover:bg-blue-100 transition font-medium"><Plus className="w-4 h-4" /> Tambah Biaya</button>
                 )}
               </div>
 
               <div className="space-y-4">
+                {data.expenses.length === 0 && (
+                  <div className="text-center py-8 text-slate-400 text-sm border-2 border-dashed border-slate-200 rounded-xl bg-slate-50">
+                    Belum ada rincian biaya yang terdaftar. {isAdmin && 'Klik tombol "+ Tambah Biaya" di atas untuk menambahkan.'}
+                  </div>
+                )}
+                
                 {data.expenses.map((expense) => {
                   const isInstallmentActive = expense.hasInstallment ?? (expense.paidAmount > 0);
                   
                   return (
                     <div key={expense.id} className="p-4 border border-slate-200 rounded-xl bg-slate-50 relative group transition-all">
-                      {isAdmin && (
-                        <button onClick={() => handleRemoveExpense(expense.id)} className="absolute -top-3 -right-3 bg-red-100 text-red-500 p-1.5 rounded-full hover:bg-red-500 hover:text-white transition shadow-sm opacity-0 group-hover:opacity-100 focus:opacity-100">
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      )}
+                      {isAdmin && ( <button onClick={() => handleRemoveExpense(expense.id)} className="absolute -top-3 -right-3 bg-red-100 text-red-500 p-1.5 rounded-full hover:bg-red-500 hover:text-white transition shadow-sm opacity-0 group-hover:opacity-100 focus:opacity-100"><Trash2 className="w-4 h-4" /></button> )}
                       
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
@@ -444,15 +494,10 @@ export default function App() {
                         </div>
                       </div>
 
-                      {/* Admin Toggle & Input Cicilan */}
                       {isAdmin && (
                         <div className="mt-4 pt-3 border-t border-slate-200/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                           <label className="flex items-center gap-3 cursor-pointer">
-                            <button
-                              type="button"
-                              onClick={() => handleUpdateExpense(expense.id, 'hasInstallment', !isInstallmentActive)}
-                              className={`w-11 h-6 rounded-full relative transition-colors duration-300 ${isInstallmentActive ? 'bg-blue-500' : 'bg-slate-300'}`}
-                            >
+                            <button type="button" onClick={() => handleUpdateExpense(expense.id, 'hasInstallment', !isInstallmentActive)} className={`w-11 h-6 rounded-full relative transition-colors duration-300 ${isInstallmentActive ? 'bg-blue-500' : 'bg-slate-300'}`}>
                               <span className={`absolute top-1 left-1 bg-white w-4 h-4 rounded-full transition-transform duration-300 shadow-sm ${isInstallmentActive ? 'translate-x-5' : 'translate-x-0'}`} />
                             </button>
                             <span className="text-sm font-medium text-slate-600 select-none">Sudah dicicil / ada uang masuk?</span>
@@ -469,7 +514,6 @@ export default function App() {
                         </div>
                       )}
 
-                      {/* View Mode (Non-Admin) untuk Cicilan */}
                       {!isAdmin && isInstallmentActive && (
                         <div className="mt-3 p-3 bg-blue-50 border border-blue-100 rounded-lg flex justify-between items-center">
                           <span className="text-xs font-medium text-blue-700">Sudah Dicicil / Dibayar Sebagian:</span>
@@ -493,25 +537,41 @@ export default function App() {
                   </div>
                 </div>
                 {isAdmin && (
-                  <button onClick={handleAddResident} className="flex items-center gap-1 text-sm bg-indigo-50 text-indigo-600 px-3 py-1.5 rounded-lg hover:bg-indigo-100 transition font-medium w-max">
-                    <Plus className="w-4 h-4" /> Tambah Orang
-                  </button>
+                  <button onClick={handleAddResident} className="flex items-center gap-1 text-sm bg-indigo-50 text-indigo-600 px-3 py-1.5 rounded-lg hover:bg-indigo-100 transition font-medium w-max"><Plus className="w-4 h-4" /> Tambah Orang</button>
                 )}
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {data.residents.length === 0 && (
+                  <div className="col-span-full text-center py-8 text-slate-400 text-sm border-2 border-dashed border-slate-200 rounded-xl bg-slate-50">
+                    Belum ada data penghuni. {isAdmin && 'Klik tombol "+ Tambah Orang" di atas untuk mendaftarkan nama.'}
+                  </div>
+                )}
+                
                 {data.residents.map((resident) => (
-                  <div key={resident.id} className={`flex items-center justify-between p-3 border rounded-xl transition-all ${resident.hasPaid ? 'border-emerald-200 bg-emerald-50' : 'border-slate-200 bg-white hover:border-blue-300'}`}>
-                    <div className="flex items-center gap-3 flex-1 min-w-0">
-                      <button onClick={() => handleTogglePaid(resident.id)} disabled={!isAdmin} className={`flex-shrink-0 transition-colors ${isAdmin ? 'cursor-pointer hover:scale-110' : 'cursor-default'}`}>
-                        {resident.hasPaid ? <CheckCircle2 className="w-6 h-6 text-emerald-500" /> : <Circle className="w-6 h-6 text-slate-300 hover:text-blue-400" />}
-                      </button>
-                      <input type="text" value={resident.name} onChange={(e) => handleUpdateResidentName(resident.id, e.target.value)} disabled={!isAdmin} className={`w-full bg-transparent text-sm font-medium outline-none truncate ${resident.hasPaid ? 'text-emerald-800' : 'text-slate-700'}`} placeholder="Nama Penghuni"/>
+                  <div key={resident.id} className={`flex flex-col p-3 border rounded-xl transition-all ${resident.hasPaid ? 'border-emerald-200 bg-emerald-50' : 'border-slate-200 bg-white hover:border-blue-300'}`}>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3 flex-1 min-w-0">
+                        <button onClick={() => handleTogglePaid(resident.id)} disabled={!isAdmin} className={`flex-shrink-0 transition-colors ${isAdmin ? 'cursor-pointer hover:scale-110' : 'cursor-default'}`}>
+                          {resident.hasPaid ? <CheckCircle2 className="w-6 h-6 text-emerald-500" /> : <Circle className="w-6 h-6 text-slate-300 hover:text-blue-400" />}
+                        </button>
+                        <input type="text" value={resident.name} onChange={(e) => handleUpdateResidentName(resident.id, e.target.value)} disabled={!isAdmin} className={`w-full bg-transparent text-sm font-medium outline-none truncate ${resident.hasPaid ? 'text-emerald-800' : 'text-slate-700'}`} placeholder="Nama Penghuni"/>
+                      </div>
+                      {isAdmin && (
+                        <button onClick={() => handleRemoveResident(resident.id)} className="ml-2 text-slate-400 hover:text-red-500 transition-colors p-1"><Trash2 className="w-4 h-4" /></button>
+                      )}
                     </div>
+                    
                     {isAdmin && (
-                      <button onClick={() => handleRemoveResident(resident.id)} className="ml-2 text-slate-400 hover:text-red-500 transition-colors p-1">
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      <div className="mt-2 pl-9 flex flex-col gap-2">
+                        <div className="flex items-center gap-2 text-xs bg-slate-50 border border-slate-200 rounded-lg p-1.5 focus-within:border-blue-400 focus-within:ring-1 focus-within:ring-blue-400 transition-all">
+                          <Phone className="w-3 h-3 text-slate-400 ml-1" />
+                          <input type="tel" value={resident.phone || ''} onChange={(e) => handleUpdateResidentPhone(resident.id, e.target.value)} placeholder="No. WA (08... atau 62...)" className="w-full bg-transparent outline-none text-slate-600 placeholder:text-slate-400 font-mono" />
+                        </div>
+                        {!resident.hasPaid && resident.phone && resident.phone.length >= 10 && (
+                          <a href={getWhatsAppLink(resident)} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-1.5 text-xs bg-[#25D366] hover:bg-[#128C7E] text-white py-1.5 rounded-lg font-medium transition-colors shadow-sm"><MessageCircle className="w-3.5 h-3.5" /> Kirim WA Pengingat</a>
+                        )}
+                      </div>
                     )}
                   </div>
                 ))}
@@ -532,17 +592,19 @@ export default function App() {
                   </div>
                 ) : (
                   [...data.history].reverse().map((item) => (
-                    <div key={item.id} className="p-4 border border-slate-200 rounded-xl bg-slate-50 flex flex-col sm:flex-row sm:items-center justify-between gap-4 group">
+                    <div 
+                      key={item.id} 
+                      onClick={() => setSelectedHistory(item)}
+                      className="p-4 border border-slate-200 rounded-xl bg-white hover:bg-blue-50/50 hover:border-blue-200 cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-4 group transition-all"
+                    >
                       <div className="flex items-start gap-3">
-                        <div className="bg-blue-100 p-2 rounded-lg text-blue-600 mt-1">
-                          <Calendar className="w-5 h-5" />
-                        </div>
+                        <div className="bg-blue-100 group-hover:bg-blue-500 group-hover:text-white p-2 rounded-lg text-blue-600 transition-colors mt-1"><Calendar className="w-5 h-5" /></div>
                         <div>
-                          <h4 className="font-bold text-slate-800">{item.monthName}</h4>
-                          <div className="text-xs text-slate-500 mt-1 space-y-0.5">
-                            <p>Iuran: {formatRupiah(item.iuranPerOrang)}/org</p>
-                            <p>Lunas: {item.lunas}/{item.totalPenghuni} Orang</p>
+                          <div className="flex items-center gap-2">
+                            <h4 className="font-bold text-slate-800">{item.monthName}</h4>
+                            <Eye className="w-4 h-4 text-slate-300 group-hover:text-blue-500 transition-colors" />
                           </div>
+                          <div className="text-xs text-slate-500 mt-1 space-y-0.5"><p>Iuran: {formatRupiah(item.iuranPerOrang)}/org</p><p>Lunas: {item.lunas}/{item.totalPenghuni} Orang</p></div>
                         </div>
                       </div>
                       <div className="flex items-center justify-between sm:justify-end gap-4 w-full sm:w-auto border-t sm:border-0 pt-3 sm:pt-0">
@@ -550,11 +612,7 @@ export default function App() {
                           <div className="text-xs text-slate-500 font-medium mb-1">Total Terkumpul</div>
                           <div className="font-bold text-emerald-600">{formatRupiah(item.terkumpul)}</div>
                         </div>
-                        {isAdmin && (
-                          <button onClick={() => handleDeleteHistory(item.id)} className="text-slate-400 hover:text-red-500 p-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        )}
+                        {isAdmin && ( <button onClick={(e) => handleDeleteHistory(e, item.id)} className="text-slate-400 hover:text-red-500 p-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"><Trash2 className="w-4 h-4" /></button> )}
                       </div>
                     </div>
                   ))
@@ -575,58 +633,43 @@ export default function App() {
               <div className="relative z-10">
                 <div className="flex items-center justify-between mb-1">
                   <div className="text-indigo-100 text-sm font-medium">Iuran Bulan Ini / Org</div>
-                  <div className="bg-white/20 px-2 py-1 rounded text-xs backdrop-blur-sm">
-                    {calc.peopleCount} Orang
-                  </div>
+                  <div className="bg-white/20 px-2 py-1 rounded text-xs backdrop-blur-sm">{calc.peopleCount} Orang</div>
                 </div>
-                <div className="text-3xl font-bold tracking-tight mb-2">
-                  {formatRupiah(calc.roundedCurrent)}
-                </div>
+                <div className="text-3xl font-bold tracking-tight mb-2">{formatRupiah(calc.roundedCurrent)}</div>
                 <div className="text-xs text-indigo-200 mb-5 flex items-center gap-1">
-                  <span>Asli: {formatRupiah(calc.perPersonCurrent)}</span>
-                  <span className="bg-indigo-500/50 px-1.5 rounded">Dibulatkan</span>
+                  <span>Asli: {formatRupiah(calc.perPersonCurrent)}</span><span className="bg-indigo-500/50 px-1.5 rounded">Dibulatkan</span>
                 </div>
                 
                 <div className="border-t border-indigo-500/50 pt-3 mt-1 space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-indigo-200">Sisa Tagihan Bersih:</span>
-                    <span className="font-semibold">{formatRupiah(calc.totalCurrent)}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-indigo-200">Kas Sisa Pembulatan:</span>
-                    <span className="font-semibold text-amber-300">
-                      {formatRupiah((calc.roundedCurrent * calc.peopleCount) - calc.totalCurrent)}
-                    </span>
-                  </div>
+                  <div className="flex justify-between text-sm"><span className="text-indigo-200">Sisa Tagihan Bersih:</span><span className="font-semibold">{formatRupiah(calc.totalCurrent)}</span></div>
+                  <div className="flex justify-between text-sm"><span className="text-indigo-200">Kas Sisa Pembulatan:</span><span className="font-semibold text-amber-300">{formatRupiah((calc.roundedCurrent * calc.peopleCount) - calc.totalCurrent)}</span></div>
                 </div>
               </div>
             </div>
 
             {/* Card Info Normal */}
-            <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-200">
-              <h3 className="text-slate-500 text-xs font-semibold uppercase tracking-wider mb-2">Estimasi Bulan Depan (Tanpa Cicilan)</h3>
-              <div className="text-xl font-bold text-slate-800 mb-1">
-                {formatRupiah(calc.roundedNormal)} <span className="text-sm font-normal text-slate-500">/ org</span>
+            {calc.totalCurrent !== calc.totalNormal && (
+              <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-200 animate-in fade-in slide-in-from-top-4 duration-300">
+                <h3 className="text-slate-500 text-xs font-semibold uppercase tracking-wider mb-2">Estimasi Bulan Depan (Tanpa Cicilan)</h3>
+                <div className="text-xl font-bold text-slate-800 mb-1">{formatRupiah(calc.roundedNormal)} <span className="text-sm font-normal text-slate-500">/ org</span></div>
+                <div className="flex justify-between text-xs text-slate-400 border-t border-slate-100 pt-2 mt-2"><span>Total Normal:</span><span>{formatRupiah(calc.totalNormal)}</span></div>
               </div>
-              <div className="flex justify-between text-xs text-slate-400 border-t border-slate-100 pt-2 mt-2">
-                <span>Total Normal:</span>
-                <span>{formatRupiah(calc.totalNormal)}</span>
-              </div>
-            </div>
+            )}
 
             {/* Admin Actions */}
             {isAdmin && (
-              <button 
-                onClick={handleFinishMonthClick}
-                className={`w-full rounded-xl p-4 flex items-center justify-center gap-2 font-semibold transition-all shadow-md ${
-                  data.residents.length > 0 && data.residents.every(r => r.hasPaid)
-                    ? 'bg-emerald-500 hover:bg-emerald-600 text-white hover:shadow-lg'
-                    : 'bg-slate-300 text-slate-500 cursor-not-allowed'
-                }`}
-              >
-                <CheckCircle2 className="w-5 h-5" />
-                Selesai Bulan Ini & Simpan
-              </button>
+              <div className="space-y-3">
+                {/* Tombol Darurat Muncul Kalau Kosong */}
+                {data.expenses.length === 0 && data.residents.length === 0 && (
+                  <button onClick={handleRestoreDefault} className="w-full bg-amber-500 hover:bg-amber-600 text-white rounded-xl p-4 flex items-center justify-center gap-2 font-semibold transition-all shadow-md">
+                    <RefreshCw className="w-5 h-5" /> Pulihkan Data Default
+                  </button>
+                )}
+
+                <button onClick={handleFinishMonthClick} className={`w-full rounded-xl p-4 flex items-center justify-center gap-2 font-semibold transition-all shadow-md ${data.residents.length > 0 && data.residents.every(r => r.hasPaid) ? 'bg-emerald-500 hover:bg-emerald-600 text-white hover:shadow-lg' : 'bg-slate-300 text-slate-500 cursor-not-allowed'}`}>
+                  <CheckCircle2 className="w-5 h-5" /> Selesai Bulan Ini & Simpan
+                </button>
+              </div>
             )}
 
             {/* Info Box */}
@@ -635,6 +678,7 @@ export default function App() {
                 <Info className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" />
                 <div className="text-sm text-blue-800 leading-relaxed">
                   Data yang tersimpan di riwayat tidak bisa diubah lagi. Saat admin klik <strong>Selesai Bulan Ini</strong>, sistem akan otomatis menyiapkan kolom kosong untuk tagihan bulan depannya.
+                  <div className="mt-2 text-xs opacity-75 font-medium border-t border-blue-200/50 pt-2">*Card Estimasi Bulan Depan akan otomatis disembunyikan jika tidak ada tagihan yang dicicil.</div>
                 </div>
               </div>
             </div>
