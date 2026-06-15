@@ -7,12 +7,12 @@ import { getFirestore, doc, setDoc, onSnapshot } from 'firebase/firestore';
 // --- FIREBASE INITIALIZATION ---
 // PENTING: Ganti object di bawah ini dengan config Firebase milikmu!
 const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
-  apiKey: "KODE_DARI_FIREBASE_KAMU",
-  authDomain: "kas-kontrakan-kamu.firebaseapp.com",
-  projectId: "kas-kontrakan-kamu",
-  storageBucket: "kas-kontrakan-kamu.appspot.com",
-  messagingSenderId: "123456789",
-  appId: "1:123456789:web:abcdefg"
+  apiKey: "AIzaSyD-LvUWxP1TMMOmIcNqRP01ibsNDRvWqv8",
+  authDomain: "kas-kontrakan.firebaseapp.com",
+  projectId: "kas-kontrakan",
+  storageBucket: "kas-kontrakan.firebasestorage.app",
+  messagingSenderId: "658531597863",
+  appId: "1:658531597863:web:29279447fd5f526bd4d802"
 };
 
 const app = initializeApp(firebaseConfig);
